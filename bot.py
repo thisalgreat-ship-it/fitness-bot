@@ -1,10 +1,11 @@
 # Файл: bot.py
-import telebot
+import os
+import telebot as telebot  # не меняем, но проверь
 import json
 import os
 
 # ВСТАВЬ СЮДА СВОЙ ТОКЕН ОТ BOTFATHER
-TOKEN = '8585048936:AAFKxEGZ6mclb15OmocO_Io7jtXqsEUb9Qc'
+TOKEN = os.getenv('TOKEN')
 
 bot = telebot.TeleBot(TOKEN)
 
