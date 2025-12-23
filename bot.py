@@ -1,25 +1,18 @@
-# Файл: bot.py
 import os
-import telebot as telebot  # не меняем, но проверь
-import json
-import os
+import telebot
+from flask import Flask, request, abort
 
-# ВСТАВЬ СЮДА СВОЙ ТОКЕН ОТ BOTFATHER
-TOKEN = os.getenv('TOKEN')
+TOKEN = os.getenv('TOKEN')  # Обязательно добавь переменную TOKEN в Render (твой токен от BotFather)
 
 bot = telebot.TeleBot(TOKEN)
 
-# Файл для хранения данных пользователей (вместо базы данных на старте)
-DATA_FILE = 'users.json'
+app = Flask(__name__)
 
-# Загружаем данные, если файл существует
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, 'r', encoding='utf-8') as f:
-        users = json.load(f)
-else:
-    users = {}
+# Обработка команды /start и всех сообщений (тот же опрос, что был раньше)
+# Я перенёс всю логику опроса сюда (она почти та же)
 
-# Вопросы для онбординга
+users = {}  # Вместо файла — в памяти (на бесплатном плане хватит, потом добавим БД)
+
 questions = [
     {"text": "Привет! 💪 Я твой ИИ-фитнес-тренер.\nКак тебя зовут?", "key": "name"},
     {"text": "Твой пол?", "key": "gender", "options": ["Мужской", "Женский"]},
@@ -33,24 +26,20 @@ questions = [
     {"text": "Какое оборудование есть дома?", "key": "equipment", "options": ["Только тело", "Гантели", "Турник", "Коврик", "Всё есть"]},
 ]
 
-def get_user_state(user_id):
-    return users.get(str(user_id), {"step": 0, "data": {}})
-
-def save_user_state(user_id, state):
-    users[str(user_id)] = state
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
+def get_state(user_id):
+    if str(user_id) not in users:
+        users[str(user_id)] = {"step": 0, "data": {}}
+    return users[str(user_id)]
 
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.chat.id
     users[str(user_id)] = {"step": 0, "data": {}}
-    save_user_state(user_id, users[str(user_id)])
     bot.reply_to(message, "Привет! Я помогу тебе создать персональный план тренировок под твои цели и возможности 🔥\n\nОтветь на несколько вопросов — это займёт меньше минуты.")
     ask_question(message.chat.id)
 
 def ask_question(chat_id):
-    state = get_user_state(chat_id)
+    state = get_state(chat_id)
     step = state["step"]
     if step >= len(questions):
         generate_plan(chat_id)
@@ -69,7 +58,7 @@ def ask_question(chat_id):
         bot.send_message(chat_id, text, reply_markup=markup)
 
 def generate_plan(chat_id):
-    state = get_user_state(chat_id)
+    state = get_state(chat_id)
     data = state["data"]
     
     name = data.get("name", "Друг")
@@ -100,12 +89,12 @@ def generate_plan(chat_id):
     """.strip()
     
     bot.send_message(chat_id, plan, parse_mode='Markdown')
-    bot.send_message(chat_id, "Напиши /start, чтобы пройти опрос заново или создать план для друга 😊")
+    bot.send_message(chat_id, "Напиши /start, чтобы пройти опрос заново 😊")
 
 @bot.message_handler(func=lambda m: True)
 def answer(message):
     user_id = message.chat.id
-    state = get_user_state(user_id)
+    state = get_state(user_id)
     step = state["step"]
     
     if step >= len(questions):
@@ -113,13 +102,36 @@ def answer(message):
         return
     
     q = questions[step]
-    answer = message.text.strip()
+    answer_text = message.text.strip()
     
-    state["data"][q["key"]] = answer
+    state["data"][q["key"]] = answer_text
     state["step"] += 1
-    save_user_state(user_id, state)
     
     ask_question(user_id)
 
+# Webhook роуты для Render
+@app.route('/')
+def index():
+    return "Бот работает! 💪"
+
+@app.route('/' + TOKEN, methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    else:
+        abort(403)
+
+# Локальный polling отключён — только webhook для Render
+# if __name__ == '__main__':
+#     bot.remove_webhook()
+#     bot.infinity_polling()
+else:
+    # Для Render — устанавливаем webhook автоматически
+    bot.remove_webhook()
+    bot.set_webhook(url='https://fitness-bot.onrender.com/' + TOKEN)
+
 print("Бот запущен...")
-bot.infinity_polling()
+app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
