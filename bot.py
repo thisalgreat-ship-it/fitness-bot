@@ -117,7 +117,7 @@ print("Бот запущен...")
 bot.remove_webhook()  # на всякий случай очищаем старый
 # ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 # ЗАМЕНИ НА СВОЙ ТОЧНЫЙ URL ИЗ RENDER !!!
-WEBHOOK_URL = "https://fitness-bot-0v41.onrender.com" + TOKEN
+WEBHOOK_URL = "https://fitness-bot-0v41.onrender.com/" + TOKEN
 bot.set_webhook(url=WEBHOOK_URL)
 print(f"Webhook установлен: {WEBHOOK_URL}")
 
