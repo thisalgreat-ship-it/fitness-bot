@@ -128,7 +128,7 @@ print("Бот запущен...")
 # Удаляем старый webhook и устанавливаем новый
 bot.remove_webhook()
 # ←←←←← ЗАМЕНИ НА СВОЙ РЕАЛЬНЫЙ URL ИЗ RENDER!
-bot.set_webhook(url='https://fitness-bot-0v41.onrender.com' + TOKEN)  # пример, замени на свой!
+bot.set_webhook(url='https://fitness-bot-0v41.onrender.com' + TOKEN)
 
 # Запуск Flask
 app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
