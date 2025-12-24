@@ -1,15 +1,17 @@
 import os
-import telebot
 from flask import Flask, request, abort
+import telebot
 
-TOKEN = os.getenv('TOKEN')  # Токен из переменной окружения в Render
+# Токен берём из переменной окружения Render
+TOKEN = os.getenv('TOKEN')
+if not TOKEN:
+    print("ОШИБКА: TOKEN не найден! Добавьте переменную TOKEN в Render.")
+    exit(1)
 
 bot = telebot.TeleBot(TOKEN)
-
 app = Flask(__name__)
 
-# Здесь вся логика бота (онбординг и план) — оставь как была раньше
-# (я вставлю её полностью, чтобы не потерять)
+# ——— ВСЯ ЛОГИКА БОТА (онбординг и план) ———
 
 users = {}
 
@@ -44,10 +46,8 @@ def ask_question(chat_id):
     if step >= len(questions):
         generate_plan(chat_id)
         return
-    
     q = questions[step]
     text = q["text"]
-    
     if "options" in q:
         markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         for opt in q["options"]:
@@ -60,54 +60,42 @@ def ask_question(chat_id):
 def generate_plan(chat_id):
     state = get_state(chat_id)
     data = state["data"]
-    
     name = data.get("name", "Друг")
-    goal = data["goal"]
-    days = data["days"]
-    level = data["level"]
-    
     plan = f"""
 🏆 *Твой персональный план готов, {name}!* 🏆
 
-🎯 Цель: {goal}
-🏋️ Уровень: {level}
-📅 Тренировки: {days} дней в неделю
-⚖️ Рост: {data.get('height', '?')} см | Вес: {data.get('weight', '?')} кг
-🩹 Ограничения: {data.get('injuries', 'Нет')}
+🎯 Цель: {data.get("goal", "?")}
+🏋️ Уровень: {data.get("level", "?")}
+📅 Тренировки: {data.get("days", "?")} дней в неделю
+⚖️ Рост: {data.get("height", "?")} см | Вес: {data.get("weight", "?")} кг
+🩹 Ограничения: {data.get("injuries", "Нет")}
 
-*Пример недели 1:*
+Пример недели 1:
 • Понедельник: Full Body A (35 мин)
 • Среда: Full Body B (40 мин)
 • Пятница: Cardio + Core (30 мин)
-• Воскресенье: Активное восстановление
 
-Все упражнения адаптированы под твоё оборудование: {data.get('equipment', 'только тело')}.
+Всё под твоё оборудование: {data.get("equipment", "только тело")}.
 
-Готов начать прямо сегодня? 💪
+Готов начать? 💪
     """.strip()
-    
     bot.send_message(chat_id, plan, parse_mode='Markdown')
-    bot.send_message(chat_id, "Напиши /start, чтобы пройти опрос заново 😊")
+    bot.send_message(chat_id, "Напиши /start, чтобы пройти заново 😊")
 
 @bot.message_handler(func=lambda m: True)
 def answer(message):
     user_id = message.chat.id
     state = get_state(user_id)
     step = state["step"]
-    
     if step >= len(questions):
-        bot.reply_to(message, "Твой план уже готов! Напиши /start для нового.")
+        bot.reply_to(message, "План уже готов! Напиши /start для нового.")
         return
-    
-    q = questions[step]
-    answer_text = message.text.strip()
-    
-    state["data"][q["key"]] = answer_text
+    state["data"][questions[step]["key"]] = message.text.strip()
     state["step"] += 1
-    
     ask_question(user_id)
 
-# Webhook роуты
+# ——— WEBHOOK ———
+
 @app.route('/')
 def index():
     return "Бот работает! 💪"
@@ -119,16 +107,18 @@ def webhook():
         update = telebot.types.Update.de_json(json_string)
         bot.process_new_updates([update])
         return ''
-    else:
-        abort(403)
+    abort(403)
 
-# Главный запуск
+# ——— ЗАПУСК ———
+
 print("Бот запущен...")
 
-# Удаляем старый webhook и устанавливаем новый
-bot.remove_webhook()
-# ←←←←← ЗАМЕНИ НА СВОЙ РЕАЛЬНЫЙ URL ИЗ RENDER!
-bot.set_webhook(url='https://fitness-bot-0v41.onrender.com' + TOKEN)
+# Устанавливаем webhook один раз при старте
+bot.remove_webhook()  # на всякий случай очищаем старый
+# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+# ЗАМЕНИ НА СВОЙ ТОЧНЫЙ URL ИЗ RENDER !!!
+WEBHOOK_URL = "https://fitness-bot-0v41.onrender.com" + TOKEN
+bot.set_webhook(url=WEBHOOK_URL)
+print(f"Webhook установлен: {WEBHOOK_URL}")
 
-# Запуск Flask
 app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
